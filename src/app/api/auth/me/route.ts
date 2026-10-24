@@ -1,26 +1,49 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { connectToDatabase } from "@/lib/server/mongodb";
-import { UserModel } from "@/lib/server/models";
+import { getSessionUser } from "@/lib/server/session";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const cookieStore = await cookies();
-    const sessionId = cookieStore.get("pawswell_user_session")?.value;
-
-    if (!sessionId) {
-      return NextResponse.json({ authenticated: false }, { status: 401 });
-    }
-
-    await connectToDatabase();
-    const user = await UserModel.findOne({ id: sessionId }).lean();
+    const cookieHeader = req.headers.get("cookie") ?? undefined;
+    const user = await getSessionUser(cookieHeader);
 
     if (!user) {
-      return NextResponse.json({ authenticated: false }, { status: 401 });
+      return NextResponse.json(
+        { authenticated: false, user: null },
+        {
+          status: 200,
+          headers: {
+            "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+          },
+        }
+      );
     }
 
-    return NextResponse.json({ authenticated: true, user });
+    return NextResponse.json(
+      { authenticated: true, user },
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+        },
+      }
+    );
   } catch (err: any) {
-    return NextResponse.json({ authenticated: false, error: err.message }, { status: 500 });
+    if (
+      err?.digest?.includes("PRERENDER") ||
+      err?.digest?.includes("DYNAMIC") ||
+      err?.digest === "HANGING_PROMISE_REJECTION"
+    ) {
+      throw err;
+    }
+    console.error("GET /api/auth/me error:", err);
+    return NextResponse.json(
+      { authenticated: false, user: null, error: "Internal server error" },
+      {
+        status: 500,
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+        },
+      }
+    );
   }
 }

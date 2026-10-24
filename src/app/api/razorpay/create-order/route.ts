@@ -5,8 +5,15 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { planId, planName, isYearly, amount, currency = "USD" } = body;
 
-    const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_TqWODGGxf4PqSm";
-    const keySecret = process.env.RAZORPAY_KEY_SECRET || "DAb4sT1E63UzJ02dDwAmJyQ8";
+    const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!keyId || !keySecret) {
+      return NextResponse.json(
+        { error: "Razorpay payment gateway credentials not configured." },
+        { status: 500 }
+      );
+    }
 
     // Amount in subunits (cents or paise, integer)
     const amountInSubunits = Math.round(Number(amount) * 100);

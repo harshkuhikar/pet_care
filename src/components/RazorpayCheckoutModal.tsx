@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { MembershipPlan } from "@/types";
-import { upgradeUserPlan, getCurrentUser } from "@/lib/storage";
+import { useAuth } from "@/context/AuthContext";
 import { firePawsConfetti } from "@/lib/confetti";
 import {
   X,
@@ -41,6 +41,7 @@ export function RazorpayCheckoutModal({
   onSuccess,
 }: RazorpayCheckoutModalProps) {
   const router = useRouter();
+  const { user, refreshUser } = useAuth();
   const [coupon, setCoupon] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState(0);
   const [paymentMode, setPaymentMode] = useState<"gateway" | "qr">("qr");
@@ -108,13 +109,17 @@ export function RazorpayCheckoutModal({
 
   // Launch official Razorpay standard popup
   const handleRazorpayGateway = async () => {
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent("/membership")}`);
+      return;
+    }
+
     setIsProcessing(true);
     setErrorMessage(null);
 
     try {
-      const currentUser = getCurrentUser();
-      const userName = currentUser?.displayName || "Pet Guardian";
-      const userEmail = currentUser?.email || "guardian@pawswell.pet";
+      const userName = user.name || "Pet Guardian";
+      const userEmail = user.email;
 
       // 1. Create order on server
       const res = await fetch("/api/razorpay/create-order", {
@@ -136,7 +141,7 @@ export function RazorpayCheckoutModal({
       }
 
       const order = data.order;
-      const keyId = data.keyId || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_TqWODGGxf4PqSm";
+      const keyId = data.keyId || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
 
       // 2. Open Razorpay Checkout modal
       if (typeof window !== "undefined" && window.Razorpay) {
@@ -170,14 +175,15 @@ export function RazorpayCheckoutModal({
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_signature: response.razorpay_signature,
+                  plan: plan.id,
+                  amount: activeAmount,
                 }),
               });
 
               const verifyData = await verifyRes.json();
 
               if (verifyData.verified) {
-                // Upgrade plan in client storage
-                upgradeUserPlan(isYearly ? "yearly" : "monthly");
+                await refreshUser();
                 firePawsConfetti();
                 setIsProcessing(false);
                 onSuccess();
@@ -188,12 +194,8 @@ export function RazorpayCheckoutModal({
               }
             } catch (err: any) {
               console.error("Verification error:", err);
-              // Still upgrade for smooth test experience if in test mode
-              upgradeUserPlan(isYearly ? "yearly" : "monthly");
-              firePawsConfetti();
+              setErrorMessage("Payment verification failed. Please contact support.");
               setIsProcessing(false);
-              onSuccess();
-              router.push("/checkout/success");
             }
           },
           modal: {
@@ -212,26 +214,14 @@ export function RazorpayCheckoutModal({
 
         rzp.open();
       } else {
-        // Fallback simulation if script wasn't reachable
-        handleDirectSimulate();
+        setErrorMessage("Razorpay checkout gateway could not be reached. Please check your network connection.");
+        setIsProcessing(false);
       }
     } catch (err: any) {
       console.error("Razorpay launch error:", err);
-      setErrorMessage(err.message || "Failed to connect to Razorpay. Using instant simulator.");
+      setErrorMessage(err.message || "Failed to initialize Razorpay checkout.");
       setIsProcessing(false);
     }
-  };
-
-  // Instant simulator for rapid testing
-  const handleDirectSimulate = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      upgradeUserPlan(isYearly ? "yearly" : "monthly");
-      firePawsConfetti();
-      setIsProcessing(false);
-      onSuccess();
-      router.push("/checkout/success");
-    }, 900);
   };
 
   return (
@@ -449,7 +439,7 @@ export function RazorpayCheckoutModal({
             {/* Verify & Unlock Button */}
             <button
               type="button"
-              onClick={handleDirectSimulate}
+              onClick={handleRazorpayGateway}
               disabled={isProcessing}
               className="w-full py-4 bg-[#00BB9C] hover:bg-[#00A388] text-white font-display font-black text-lg rounded-2xl border-3 border-black pop-shadow hover:scale-102 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
@@ -517,16 +507,6 @@ export function RazorpayCheckoutModal({
               )}
             </button>
 
-            {/* Quick One-Click Instant Sim Option */}
-            <button
-              type="button"
-              onClick={handleDirectSimulate}
-              disabled={isProcessing}
-              className="w-full py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-display font-bold text-xs rounded-xl border-2 border-black pop-shadow-sm hover:scale-101 active:scale-99 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              <span>Instant One-Click Test Simulation (Bypass)</span>
-            </button>
           </div>
         )}
 

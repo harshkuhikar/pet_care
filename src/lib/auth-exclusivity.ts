@@ -84,7 +84,10 @@ export function verifyPassword(password: string, hash: string, salt: string): bo
  * Generates an encrypted admin session token
  */
 export function generateAdminSessionToken(adminId: string, email: string): string {
-  const secret = process.env.RAZORPAY_KEY_SECRET || "pawswell_super_admin_secret_key_2026";
+  const secret = process.env.SESSION_SECRET || process.env.RAZORPAY_KEY_SECRET;
+  if (!secret) {
+    throw new Error("Missing SESSION_SECRET environment variable for admin token generation.");
+  }
   const payload = JSON.stringify({
     adminId,
     email: normalizeEmail(email).canonicalEmail,
@@ -111,7 +114,8 @@ export function verifyAdminSessionToken(token: string): { valid: boolean; adminI
 
   try {
     const [base64Payload, signature] = token.split(".");
-    const secret = process.env.RAZORPAY_KEY_SECRET || "pawswell_super_admin_secret_key_2026";
+    const secret = process.env.SESSION_SECRET || process.env.RAZORPAY_KEY_SECRET;
+    if (!secret) return { valid: false };
 
     const expectedSignature = crypto
       .createHmac("sha256", secret)

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import {
   getCurrentUser,
   saveUser,
@@ -15,7 +16,6 @@ import {
   getPetWallPhotos,
   deletePetWallPhoto,
   logoutUser,
-  upgradeUserPlan,
 } from "@/lib/storage";
 import { SEED_ARTICLES, SEED_PARTNERS } from "@/lib/seedData";
 import { UserProfile, Pet, PetSpecies, Article, PetWallPhoto } from "@/types";
@@ -54,12 +54,16 @@ function ProfileContent() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as ProfileTab) || "overview";
 
+  const { user: authUser, status: authStatus, logout, refreshUser: refreshAuthUser } = useAuth();
   const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
   const [savedArticles, setSavedArticles] = useState<Article[]>([]);
   const [myPhotos, setMyPhotos] = useState<PetWallPhoto[]>([]);
   const [qaStats, setQaStats] = useState<{ unlockedCount: number; limit: number | string; isPro: boolean } | null>(null);
+  const [displayNameInput, setDisplayNameInput] = useState("");
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [saveNameSuccess, setSaveNameSuccess] = useState<string | null>(null);
 
   // Pet Modal State
   const [petModalOpen, setPetModalOpen] = useState(false);
@@ -73,31 +77,53 @@ function ProfileContent() {
   // Collection folder state
   const [activeCollection, setActiveCollection] = useState<string>("All Saved");
 
-  const refreshData = async () => {
-    const cur = getCurrentUser();
-    setUser(cur);
-    if (cur) {
-      setPets(getUserPets(cur.id));
+  useEffect(() => {
+    if (authUser) {
+      const cur: UserProfile = {
+        id: authUser.id,
+        email: authUser.email,
+        displayName: authUser.name,
+        avatarUrl: authUser.avatarUrl,
+        role: authUser.role === "admin" ? "admin" : authUser.isVIP ? "premium" : "member",
+        plan: authUser.plan,
+        planRenewsAt: authUser.planExpiresAt || "2027-03-15",
+        joinedAt: authUser.createdAt ? authUser.createdAt.split("T")[0] : "2026-01-01",
+        bio: "Holistic pet guardian passionate about canine & feline longevity, whole food diets, and preventative wellness.",
+        newsletterSubscribed: true,
+        newsletterFrequency: "weekly",
+        savedArticlesCount: 0,
+        petsCount: 0,
+      };
+      setUser(cur);
+      setDisplayNameInput(authUser.name);
+      setPets(getUserPets(authUser.id));
       const savedIds = getSavedArticleIds();
       setSavedArticles(SEED_ARTICLES.filter((a) => savedIds.includes(a.id)));
       const allPhotos = getPetWallPhotos();
-      setMyPhotos(allPhotos.filter((p) => p.userId === cur.id || p.ownerDisplayName === cur.displayName));
+      setMyPhotos(allPhotos.filter((p) => p.userId === authUser.id || p.ownerDisplayName === authUser.name));
 
-      try {
-        const statsRes = await fetch(`/api/qa/user-stats?userId=${cur.id}&userRole=${cur.role}&userPlan=${cur.plan}`);
-        if (statsRes.ok) {
-          const statsData = await statsRes.json();
-          setQaStats(statsData);
-        }
-      } catch (err) {
-        // Safe fallback
-      }
+      fetch(`/api/qa/user-stats?userId=${authUser.id}&userRole=${authUser.role}&userPlan=${authUser.plan}`)
+        .then(async (r) => {
+          if (r.ok) {
+            const data = await r.json();
+            setQaStats(data);
+          }
+        })
+        .catch(() => {});
+    } else if (authStatus === "unauthenticated") {
+      setUser(null);
+    }
+  }, [authUser, authStatus]);
+
+  const refreshData = () => {
+    if (authUser) {
+      setPets(getUserPets(authUser.id));
+      const savedIds = getSavedArticleIds();
+      setSavedArticles(SEED_ARTICLES.filter((a) => savedIds.includes(a.id)));
+      const allPhotos = getPetWallPhotos();
+      setMyPhotos(allPhotos.filter((p) => p.userId === authUser.id || p.ownerDisplayName === authUser.name));
     }
   };
-
-  useEffect(() => {
-    refreshData();
-  }, []);
 
   const handleOpenAddPet = () => {
     setEditingPetId(null);
@@ -185,15 +211,33 @@ function ProfileContent() {
     a.click();
   };
 
+  if (authStatus === "loading") {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-20 animate-pulse space-y-6">
+        <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded-3xl" />
+        <div className="h-64 bg-slate-200 dark:bg-slate-800 rounded-3xl" />
+      </div>
+    );
+  }
+
   if (!user) {
     return (
-      <div className="max-w-md mx-auto px-4 py-20 text-center">
-        <h2 className="font-display font-black text-2xl mb-4">You are not logged in</h2>
+      <div className="max-w-md mx-auto px-4 py-20 text-center space-y-4">
+        <div className="w-16 h-16 rounded-2xl bg-[#FFE600] border-3 border-black flex items-center justify-center text-3xl pop-shadow mx-auto">
+          🐾
+        </div>
+        <h2 className="font-display font-black text-2xl text-slate-900 dark:text-white">
+          Sign In to Access Your Dashboard
+        </h2>
+        <p className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400">
+          Sign in with your email verification code to access your companions, subscription, and saved health guides.
+        </p>
         <Link
-          href="/login"
-          className="px-6 py-3 bg-[#FF4D6D] text-white font-display font-black rounded-xl border-2 border-black pop-shadow"
+          href="/login?next=/profile"
+          className="inline-flex items-center gap-2 px-6 py-3.5 bg-[#FF4D6D] text-white font-display font-black text-sm rounded-2xl border-3 border-black pop-shadow-coral hover:scale-105 active:scale-95 transition-all"
         >
-          Sign In to Your Dashboard
+          <span>Sign In with OTP</span>
+          <span>➔</span>
         </Link>
       </div>
     );
@@ -790,16 +834,50 @@ function ProfileContent() {
                 Account & Security Settings
               </h2>
 
+              {saveNameSuccess && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-400 rounded-xl text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                  {saveNameSuccess}
+                </div>
+              )}
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-black uppercase text-slate-600 dark:text-slate-300 mb-1">
                     Display Name
                   </label>
-                  <input
-                    type="text"
-                    defaultValue={user.displayName}
-                    className="w-full max-w-md px-4 py-2.5 text-sm font-semibold border-2 border-black rounded-xl bg-[#FFFDF5] dark:bg-slate-800"
-                  />
+                  <div className="flex gap-2 max-w-md">
+                    <input
+                      type="text"
+                      value={displayNameInput}
+                      onChange={(e) => setDisplayNameInput(e.target.value)}
+                      className="flex-1 px-4 py-2.5 text-sm font-semibold border-2 border-black rounded-xl bg-[#FFFDF5] dark:bg-slate-800"
+                    />
+                    <button
+                      type="button"
+                      disabled={isSavingName || !displayNameInput.trim()}
+                      onClick={async () => {
+                        setIsSavingName(true);
+                        setSaveNameSuccess(null);
+                        try {
+                          const res = await fetch("/api/auth/profile", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ name: displayNameInput.trim() }),
+                          });
+                          if (res.ok) {
+                            await refreshAuthUser();
+                            setSaveNameSuccess("Display name updated successfully!");
+                            setTimeout(() => setSaveNameSuccess(null), 3000);
+                          }
+                        } finally {
+                          setIsSavingName(false);
+                        }
+                      }}
+                      className="px-4 py-2.5 bg-[#FFE600] text-black font-black text-xs rounded-xl border-2 border-black pop-shadow hover:scale-105 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+                    >
+                      {isSavingName ? "Saving..." : "Save"}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -808,9 +886,49 @@ function ProfileContent() {
                   </label>
                   <input
                     type="email"
-                    defaultValue={user.email}
-                    className="w-full max-w-md px-4 py-2.5 text-sm font-semibold border-2 border-black rounded-xl bg-[#FFFDF5] dark:bg-slate-800"
+                    disabled
+                    value={user.email}
+                    className="w-full max-w-md px-4 py-2.5 text-sm font-semibold border-2 border-slate-300 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-not-allowed"
                   />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Your email is verified via passwordless OTP.
+                  </p>
+                </div>
+
+                {/* Active Sessions & Multi-Device Security */}
+                <div className="pt-4 border-t-2 border-slate-100 dark:border-slate-800 space-y-3">
+                  <h3 className="font-display font-black text-base text-slate-900 dark:text-white">
+                    Active Devices & Sessions
+                  </h3>
+                  <div className="p-4 bg-[#FFFDF5] dark:bg-slate-800 border-2 border-black rounded-2xl flex items-center justify-between max-w-lg pop-shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 border border-black flex items-center justify-center text-lg">
+                        💻
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-900 dark:text-white">
+                          Current Browser / Device
+                        </p>
+                        <p className="text-[11px] font-semibold text-emerald-600">
+                          Active Session (Signed HTTP-Only Cookie)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (confirm("This will log you out from all browsers and devices. Continue?")) {
+                        await fetch("/api/auth/logout-all", { method: "POST" });
+                        logout();
+                      }
+                    }}
+                    className="px-4 py-2.5 bg-amber-100 text-amber-900 font-bold text-xs rounded-xl border-2 border-black pop-shadow hover:scale-102 cursor-pointer flex items-center gap-2"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Log Out of All Devices</span>
+                  </button>
                 </div>
 
                 <div className="pt-4 border-t-2 border-slate-100 dark:border-slate-800">
@@ -819,7 +937,7 @@ function ProfileContent() {
                   </h3>
                   <button
                     onClick={handleExportData}
-                    className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-xs font-bold rounded-xl border-2 border-black pop-shadow flex items-center gap-1.5 hover:bg-slate-200"
+                    className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-xs font-bold rounded-xl border-2 border-black pop-shadow flex items-center gap-1.5 hover:bg-slate-200 cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Download All Account Data (JSON)</span>
@@ -831,16 +949,16 @@ function ProfileContent() {
                     Danger Zone
                   </h3>
                   <p className="text-xs text-slate-500 mb-3">
-                    Permanently delete your account, companion profiles, and saved recipes.
+                    Permanently delete your account, companion profiles, and subscriptions.
                   </p>
                   <button
-                    onClick={() => {
-                      if (confirm("Are you sure? This action cannot be undone.")) {
-                        logoutUser();
-                        window.location.href = "/";
+                    onClick={async () => {
+                      if (confirm("Are you sure? This action is permanent and will delete your account.")) {
+                        await fetch("/api/auth/delete-account", { method: "POST" });
+                        logout();
                       }
                     }}
-                    className="px-4 py-2 bg-rose-50 text-rose-600 text-xs font-bold rounded-xl border-2 border-rose-300 hover:bg-rose-100"
+                    className="px-4 py-2 bg-rose-50 text-rose-600 text-xs font-bold rounded-xl border-2 border-rose-300 hover:bg-rose-100 cursor-pointer"
                   >
                     Delete Account & Data
                   </button>

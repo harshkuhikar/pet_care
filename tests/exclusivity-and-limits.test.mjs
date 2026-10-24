@@ -47,10 +47,17 @@ test("Email Exclusivity: User registration with admin email (any casing/spaces) 
 // 3. Email Exclusivity: User email cannot be registered as Admin
 // --------------------------------------------------------------------------------
 test("Email Exclusivity: Admin creation with existing user email is blocked", async () => {
+  const existingUserEmail = `existing_user_${Date.now()}@example.com`;
+  await db.createAccount({
+    email: existingUserEmail,
+    role: "user",
+    status: "active",
+  });
+
   await assert.rejects(
     async () => {
       await db.createAccount({
-        email: "SARAH.BARNABY@EXAMPLE.COM",
+        email: existingUserEmail.toUpperCase(),
         role: "admin",
         status: "active",
       });

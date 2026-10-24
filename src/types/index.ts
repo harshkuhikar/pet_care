@@ -54,7 +54,7 @@ export interface UserProfile {
   displayName: string;
   avatarUrl: string;
   role: "member" | "premium" | "pro" | "admin";
-  plan: "free" | "monthly" | "yearly" | "pro" | "premium";
+  plan: "free" | "monthly" | "yearly" | "pro" | "premium" | "family";
   planRenewsAt?: string;
   joinedAt: string;
   bio?: string;

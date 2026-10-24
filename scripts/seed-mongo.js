@@ -96,57 +96,11 @@ async function seed() {
   );
   console.log(`[OK] Admin account verified & synced: ${email}`);
 
-  // 2. Seed Demo User Account
-  const demoUser = normalizeEmail("sarah.barnaby@example.com");
-  const demoHash = hashPassword("UserPass2026!");
-  await accountsColl.updateOne(
-    { canonicalEmail: demoUser.canonicalEmail },
-    {
-      $set: {
-        id: "usr_alice",
-        email: demoUser.email,
-        canonicalEmail: demoUser.canonicalEmail,
-        role: "user",
-        plan: "premium",
-        passwordHash: demoHash.hash,
-        salt: demoHash.salt,
-        status: "active",
-        updatedAt: new Date().toISOString(),
-      },
-      $setOnInsert: {
-        createdAt: new Date().toISOString(),
-      },
-    },
-    { upsert: true }
-  );
-
-  // 3. User profile
+  // Clean up legacy demo accounts if present
+  await accountsColl.deleteMany({ email: "sarah.barnaby@example.com" });
   const usersColl = db.collection("users");
-  await usersColl.updateOne(
-    { email: demoUser.email },
-    {
-      $set: {
-        id: "usr_alice",
-        email: demoUser.email,
-        displayName: "Barnaby's Mom",
-        avatarUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80",
-        role: "premium",
-        plan: "premium",
-        planRenewsAt: "2027-03-15",
-        bio: "Holistic pet guardian passionate about canine gut health, positive reinforcement, and raw nutrition for rescue dogs.",
-        newsletterSubscribed: true,
-        newsletterFrequency: "weekly",
-        savedArticlesCount: 4,
-        petsCount: 2,
-        updatedAt: new Date().toISOString(),
-      },
-      $setOnInsert: {
-        createdAt: new Date().toISOString(),
-      },
-    },
-    { upsert: true }
-  );
-  console.log(`[OK] Demo user account & profile verified: sarah.barnaby@example.com`);
+  await usersColl.deleteMany({ email: "sarah.barnaby@example.com" });
+  console.log(`[OK] Legacy demo user removed from database.`);
 
   // 4. Seed Questions
   const questionsColl = db.collection("questions");

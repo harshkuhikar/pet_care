@@ -17,51 +17,8 @@ import {
   SEED_NEWSLETTERS,
 } from "./seedData";
 
-// Default Demo User
-export const DEFAULT_USER: UserProfile = {
-  id: "usr_alice",
-  email: "sarah.barnaby@example.com",
-  displayName: "Barnaby's Mom",
-  avatarUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80",
-  role: "premium",
-  plan: "premium",
-  planRenewsAt: "2027-03-15",
-  joinedAt: "2025-11-10",
-  bio: "Holistic pet guardian passionate about canine gut health, positive reinforcement, and raw nutrition for rescue dogs.",
-  newsletterSubscribed: true,
-  newsletterFrequency: "weekly",
-  savedArticlesCount: 4,
-  petsCount: 2,
-};
-
-export const DEFAULT_PETS: Pet[] = [
-  {
-    id: "pet-1",
-    userId: "usr_alice",
-    name: "Barnaby",
-    species: "dog",
-    breed: "Golden Retriever Mix",
-    age: "4 years",
-    photoUrl: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=400&q=80",
-    healthNotes: "Recovered from antibiotic-induced dysbiosis. Currently doing raw fermented kefir daily. Mild seasonal paw itching in spring.",
-    allergies: ["Chicken", "Corn"],
-    dietType: "Gently Cooked Single-Protein (Beef + Omega-3)",
-    createdAt: "2025-11-12",
-  },
-  {
-    id: "pet-2",
-    userId: "usr_alice",
-    name: "Cleo",
-    species: "cat",
-    breed: "Domestic Shorthair",
-    age: "7 years",
-    photoUrl: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=400&q=80",
-    healthNotes: "Routine preventative renal hydration checks. Excellent bloodwork. Prefers warm chicken bone broth toppers.",
-    allergies: ["Dry Grain"],
-    dietType: "High-Moisture Wet Pâté + Chitosan",
-    createdAt: "2026-01-05",
-  },
-];
+// Default Guest Pets (Empty array for guests)
+export const DEFAULT_PETS: Pet[] = [];
 
 const STORAGE_KEYS = {
   USER: "pawswell_user",
@@ -95,9 +52,9 @@ function setToStorage<T>(key: string, value: T): void {
   }
 }
 
-// User / Auth Helpers
+// User / Auth Helpers (Default to null for guests)
 export function getCurrentUser(): UserProfile | null {
-  return getFromStorage<UserProfile | null>(STORAGE_KEYS.USER, DEFAULT_USER);
+  return getFromStorage<UserProfile | null>(STORAGE_KEYS.USER, null);
 }
 
 export function saveUser(user: UserProfile | null): void {
@@ -112,29 +69,6 @@ export function logoutUser(): void {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("pawswell_user_updated", { detail: null }));
   }
-}
-
-export function loginDemoUser(role: "member" | "premium" | "pro" | "admin" = "premium"): UserProfile {
-  const user: UserProfile = {
-    ...DEFAULT_USER,
-    role,
-    plan: role === "member" ? "free" : role === "pro" ? "pro" : "premium",
-  };
-  saveUser(user);
-  return user;
-}
-
-export function upgradeUserPlan(plan: "free" | "monthly" | "yearly" | "pro" | "premium"): UserProfile | null {
-  const user = getCurrentUser();
-  if (!user) return null;
-  const updated: UserProfile = {
-    ...user,
-    role: plan === "free" ? "member" : plan === "pro" ? "pro" : "premium",
-    plan,
-    planRenewsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-  };
-  saveUser(updated);
-  return updated;
 }
 
 // Pets Helpers

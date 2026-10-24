@@ -237,7 +237,12 @@ export const db = {
 
       return newAcc;
     } catch (err: any) {
-      if (err.message?.includes("already exists") || err.message?.includes("cannot be used")) {
+      if (
+        err.message?.includes("already exists") ||
+        err.message?.includes("cannot be used") ||
+        err.message?.includes("already registered") ||
+        err.message?.includes("cannot be assigned")
+      ) {
         throw err;
       }
       console.warn("[MongoDB] createAccount fallback:", err);

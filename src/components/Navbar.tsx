@@ -4,8 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { siteConfig } from "@/config/site";
-import { getCurrentUser } from "@/lib/storage";
-import { UserProfile } from "@/types";
+import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "./ThemeToggle";
 import {
   Menu,
@@ -18,41 +17,30 @@ import {
   Camera,
   ChevronDown,
   HelpCircle,
+  LogOut,
+  Settings,
 } from "lucide-react";
 
 export function Navbar() {
   const pathname = usePathname();
+  const { user, status, isVIP, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    const handleSync = () => {
-      setUser(getCurrentUser());
-    };
-    handleSync();
-
-    if (typeof window !== "undefined") {
-      window.addEventListener("pawswell_user_updated", handleSync);
-      window.addEventListener("storage", handleSync);
-      return () => {
-        window.removeEventListener("pawswell_user_updated", handleSync);
-        window.removeEventListener("storage", handleSync);
-      };
+  const formatPlanName = (plan?: string) => {
+    switch (plan) {
+      case "premium":
+        return "PawsWell Premium";
+      case "family":
+        return "Family";
+      case "pro":
+        return "Multi-Pet Pro";
+      default:
+        return "Free Explorer";
     }
-  }, [pathname]);
-
-  const isUserPremium = Boolean(
-    user &&
-      (user.role === "premium" ||
-        user.role === "pro" ||
-        user.role === "admin" ||
-        user.plan === "monthly" ||
-        user.plan === "yearly" ||
-        user.plan === "pro" ||
-        user.plan === "premium")
-  );
+  };
 
   const isActive = (path: string) => {
     if (path === "/" && pathname !== "/") return false;
@@ -221,62 +209,129 @@ export function Navbar() {
             <ThemeToggle />
 
             {/* Member Profile or Auth CTA */}
-            {user ? (
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/profile"
-                  className="flex items-center gap-2 bg-white dark:bg-slate-800 border-2 border-black rounded-xl p-1.5 pr-3 pop-shadow hover:scale-102 transition-transform"
+            {status === "loading" ? (
+              <div className="hidden sm:flex items-center gap-2 animate-pulse">
+                <div className="w-20 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+                <div className="w-24 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+              </div>
+            ) : user ? (
+              <div className="relative flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  className="flex items-center gap-2 bg-white dark:bg-slate-800 border-2 border-black rounded-xl p-1.5 pr-2.5 pop-shadow hover:scale-102 transition-transform cursor-pointer"
                 >
                   <img
                     src={user.avatarUrl}
-                    alt={user.displayName}
+                    alt={user.name}
                     className="w-8 h-8 rounded-lg object-cover border border-black"
                   />
                   <div className="hidden sm:block text-left">
-                    <p className="text-xs font-black truncate max-w-[100px] leading-tight">
-                      {user.displayName}
+                    <p className="text-xs font-black truncate max-w-[110px] leading-tight">
+                      {user.name}
                     </p>
-                    <span className="text-[10px] font-black uppercase px-1 py-0.2 rounded bg-[#FFE600] text-black">
-                      {user.role}
+                    <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-[#FFE600] text-black">
+                      {formatPlanName(user.plan)}
                     </span>
                   </div>
-                </Link>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                </button>
+
+                {/* Dropdown Menu */}
+                {userDropdownOpen && (
+                  <div className="absolute right-0 top-12 mt-2 w-56 bg-white dark:bg-slate-900 border-3 border-black rounded-2xl pop-shadow-xl p-2 z-50 animate-pop-bounce">
+                    <div className="p-2 border-b-2 border-slate-100 dark:border-slate-800 mb-1">
+                      <p className="text-xs font-black truncate text-slate-900 dark:text-white">
+                        {user.name}
+                      </p>
+                      <p className="text-[11px] font-semibold text-slate-500 truncate">
+                        {user.email}
+                      </p>
+                      <span className="inline-block mt-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-[#FFE600] text-black border border-black">
+                        {formatPlanName(user.plan)}
+                      </span>
+                    </div>
+
+                    <Link
+                      href="/profile"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 transition-colors"
+                    >
+                      <UserIcon className="w-4 h-4 text-purple-600" />
+                      <span>My Profile</span>
+                    </Link>
+
+                    <Link
+                      href="/profile#pets"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 transition-colors"
+                    >
+                      <span className="text-sm">🐾</span>
+                      <span>My Pets</span>
+                    </Link>
+
+                    <Link
+                      href="/membership"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 transition-colors"
+                    >
+                      <Crown className="w-4 h-4 text-amber-500" />
+                      <span>Subscription & Plan</span>
+                    </Link>
+
+                    <div className="my-1 border-t-2 border-slate-100 dark:border-slate-800" />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        logout();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Log Out</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="hidden sm:flex items-center gap-2">
                 <Link
                   href="/login"
-                  className="px-3 py-1.5 font-bold text-sm text-slate-800 dark:text-slate-200 hover:text-[#FF4D6D]"
+                  className="px-3 py-1.5 font-bold text-sm text-slate-800 dark:text-slate-200 hover:text-[#FF4D6D] transition-colors"
                 >
-                  Sign In
+                  Log in
                 </Link>
                 <Link
                   href="/signup"
                   className="px-4 py-2 font-display font-black text-sm bg-[#FFE600] text-black border-2 border-black rounded-xl pop-shadow hover:scale-105 active:scale-95 transition-all"
                 >
-                  Join Free
+                  Sign up
                 </Link>
               </div>
             )}
 
-            {/* Go Premium CTA Button (Only show if not already premium) */}
-            {!isUserPremium ? (
-              <Link
-                href="/membership"
-                className="hidden md:flex items-center gap-1.5 px-4 py-2 font-display font-black text-sm bg-[#FF4D6D] hover:bg-[#E63956] text-white border-2 border-black rounded-xl pop-shadow-coral hover:scale-108 active:scale-95 transition-all animate-wiggle hover:animate-none group cursor-pointer"
-              >
-                <Crown className="w-4 h-4 text-[#FFE600] group-hover:rotate-12 transition-transform" />
-                <span>Go Premium</span>
-                <Sparkles className="w-3 h-3 text-[#FFE600] animate-spin-slow" />
-              </Link>
-            ) : (
-              <Link
-                href="/profile"
-                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 font-display font-black text-xs bg-[#FFE600] text-black border-2 border-black rounded-xl pop-shadow hover:scale-105 active:scale-95 transition-all cursor-pointer"
-              >
-                <Crown className="w-3.5 h-3.5 text-purple-700" />
-                <span>VIP Active</span>
-              </Link>
+            {/* Plan / VIP Badge Button */}
+            {status !== "loading" && (
+              isVIP ? (
+                <Link
+                  href="/profile"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 font-display font-black text-xs bg-[#FFE600] text-black border-2 border-black rounded-xl pop-shadow hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Crown className="w-3.5 h-3.5 text-purple-700" />
+                  <span>VIP Active</span>
+                </Link>
+              ) : (
+                <Link
+                  href="/membership"
+                  className="hidden md:flex items-center gap-1.5 px-4 py-2 font-display font-black text-sm bg-[#FF4D6D] hover:bg-[#E63956] text-white border-2 border-black rounded-xl pop-shadow-coral hover:scale-108 active:scale-95 transition-all group cursor-pointer"
+                >
+                  <Crown className="w-4 h-4 text-[#FFE600] group-hover:rotate-12 transition-transform" />
+                  <span>Go Premium</span>
+                  <Sparkles className="w-3 h-3 text-[#FFE600]" />
+                </Link>
+              )
             )}
 
             {/* Mobile Menu Button */}
@@ -360,15 +415,7 @@ export function Navbar() {
             </div>
 
             <div className="pt-2 border-t-2 border-black/10 flex flex-col gap-2">
-              {!isUserPremium ? (
-                <Link
-                  onClick={() => setMobileMenuOpen(false)}
-                  href="/membership"
-                  className="w-full text-center py-3 bg-[#FF4D6D] text-white font-display font-black rounded-xl border-2 border-black pop-shadow"
-                >
-                  👑 Go Premium (Save 20%)
-                </Link>
-              ) : (
+              {isVIP ? (
                 <Link
                   onClick={() => setMobileMenuOpen(false)}
                   href="/profile"
@@ -376,22 +423,61 @@ export function Navbar() {
                 >
                   ⭐ VIP Membership Active (Manage Perks)
                 </Link>
+              ) : (
+                <Link
+                  onClick={() => setMobileMenuOpen(false)}
+                  href="/membership"
+                  className="w-full text-center py-3 bg-[#FF4D6D] text-white font-display font-black rounded-xl border-2 border-black pop-shadow"
+                >
+                  👑 Go Premium
+                </Link>
               )}
-              {!user && (
+              {user ? (
+                <div className="flex flex-col gap-2">
+                  <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border-2 border-black flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-lg border border-black" />
+                      <div>
+                        <p className="text-xs font-black">{user.name}</p>
+                        <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-[#FFE600] text-black">
+                          {formatPlanName(user.plan)}
+                        </span>
+                      </div>
+                    </div>
+                    <Link
+                      onClick={() => setMobileMenuOpen(false)}
+                      href="/profile"
+                      className="text-xs font-bold underline"
+                    >
+                      View
+                    </Link>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      logout();
+                    }}
+                    className="w-full py-2.5 bg-rose-50 text-rose-600 font-bold text-xs rounded-xl border-2 border-rose-300"
+                  >
+                    Log Out
+                  </button>
+                </div>
+              ) : (
                 <div className="flex gap-2">
                   <Link
                     onClick={() => setMobileMenuOpen(false)}
                     href="/login"
-                    className="flex-1 text-center py-2.5 bg-white dark:bg-slate-800 font-bold rounded-xl border-2 border-black pop-shadow"
+                    className="flex-1 text-center py-2.5 bg-white dark:bg-slate-800 font-bold rounded-xl border-2 border-black pop-shadow text-sm"
                   >
-                    Sign In
+                    Log in
                   </Link>
                   <Link
                     onClick={() => setMobileMenuOpen(false)}
                     href="/signup"
-                    className="flex-1 text-center py-2.5 bg-[#FFE600] text-black font-bold rounded-xl border-2 border-black pop-shadow"
+                    className="flex-1 text-center py-2.5 bg-[#FFE600] text-black font-bold rounded-xl border-2 border-black pop-shadow text-sm"
                   >
-                    Join Free
+                    Sign up
                   </Link>
                 </div>
               )}

@@ -6,11 +6,17 @@ const AccountSchema = new Schema(
     id: { type: String, required: true, unique: true },
     email: { type: String, required: true },
     canonicalEmail: { type: String, required: true, unique: true, index: true },
+    name: { type: String },
+    avatarUrl: { type: String },
     role: { type: String, enum: ["user", "admin"], required: true },
-    plan: { type: String, default: "free" },
+    plan: { type: String, enum: ["free", "premium", "family", "pro"], default: "free" },
+    planExpiresAt: { type: String },
     passwordHash: { type: String },
     salt: { type: String },
-    status: { type: String, enum: ["active", "suspended"], default: "active" },
+    status: { type: String, enum: ["active", "suspended", "banned"], default: "active" },
+    emailVerified: { type: Boolean, default: false },
+    lastLoginAt: { type: String },
+    tokenVersion: { type: Number, default: 1 },
     createdAt: { type: String, required: true },
     updatedAt: { type: String, required: true },
   },
@@ -182,6 +188,64 @@ const OrderSchema = new Schema(
   { collection: "orders" }
 );
 
+// 12. OTP Codes Schema (TTL auto-cleanup, HMAC-SHA256 hash storage)
+const OtpCodeSchema = new Schema(
+  {
+    email: { type: String, required: true, index: true },
+    codeHash: { type: String, required: true },
+    purpose: { type: String, enum: ["signup", "login"], default: "login" },
+    attempts: { type: Number, default: 0 },
+    maxAttempts: { type: Number, default: 5 },
+    consumedAt: { type: String },
+    ip: { type: String },
+    userAgent: { type: String },
+    createdAt: { type: Date, default: Date.now },
+    expiresAt: { type: Date, required: true, index: { expireAfterSeconds: 0 } },
+  },
+  { collection: "otp_codes" }
+);
+
+// 13. Rate Limits Schema (TTL auto-cleanup)
+const RateLimitSchema = new Schema(
+  {
+    key: { type: String, required: true, unique: true, index: true },
+    count: { type: Number, default: 1 },
+    lastRequestAt: { type: Date, default: Date.now },
+    expiresAt: { type: Date, required: true, index: { expireAfterSeconds: 0 } },
+  },
+  { collection: "rate_limits" }
+);
+
+// 14. Sessions Schema (Signed cookie device sessions, revocation support)
+const SessionSchema = new Schema(
+  {
+    sessionId: { type: String, required: true, unique: true, index: true },
+    accountId: { type: String, required: true, index: true },
+    ip: { type: String },
+    userAgent: { type: String },
+    revokedAt: { type: String },
+    createdAt: { type: Date, default: Date.now },
+    expiresAt: { type: Date, required: true, index: { expireAfterSeconds: 0 } },
+  },
+  { collection: "sessions" }
+);
+
+// 15. Subscriptions Schema
+const SubscriptionSchema = new Schema(
+  {
+    accountId: { type: String, required: true, index: true },
+    plan: { type: String, enum: ["free", "premium", "family", "pro"], default: "free" },
+    status: { type: String, enum: ["active", "canceled", "expired"], default: "active" },
+    startedAt: { type: String, required: true },
+    expiresAt: { type: String },
+    razorpayOrderId: { type: String },
+    razorpayPaymentId: { type: String },
+    createdAt: { type: String, required: true },
+    updatedAt: { type: String, required: true },
+  },
+  { collection: "subscriptions" }
+);
+
 // Export models safely avoiding overwrite errors in Next.js Turbopack HMR
 export const AccountModel =
   mongoose.models.Account || mongoose.model("Account", AccountSchema);
@@ -207,3 +271,12 @@ export const PetRecordModel =
   mongoose.models.PetRecord || mongoose.model("PetRecord", PetRecordSchema);
 export const OrderModel =
   mongoose.models.Order || mongoose.model("Order", OrderSchema);
+export const OtpCodeModel =
+  mongoose.models.OtpCode || mongoose.model("OtpCode", OtpCodeSchema);
+export const RateLimitModel =
+  mongoose.models.RateLimit || mongoose.model("RateLimit", RateLimitSchema);
+export const SessionModel =
+  mongoose.models.Session || mongoose.model("Session", SessionSchema);
+export const SubscriptionModel =
+  mongoose.models.Subscription || mongoose.model("Subscription", SubscriptionSchema);
+

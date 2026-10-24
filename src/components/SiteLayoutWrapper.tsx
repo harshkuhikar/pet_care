@@ -6,6 +6,8 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { PawCursorTrail } from "@/components/PawCursorTrail";
 
+import { AuthProvider } from "@/context/AuthContext";
+
 function SiteLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAdminRoute = pathname?.startsWith("/admin");
@@ -34,8 +36,10 @@ function SiteLayoutContent({ children }: { children: React.ReactNode }) {
 
 export function SiteLayoutWrapper({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<main className="flex-1 min-h-screen">{children}</main>}>
-      <SiteLayoutContent>{children}</SiteLayoutContent>
-    </Suspense>
+    <AuthProvider>
+      <Suspense fallback={<main className="flex-1 min-h-screen">{children}</main>}>
+        <SiteLayoutContent>{children}</SiteLayoutContent>
+      </Suspense>
+    </AuthProvider>
   );
 }
