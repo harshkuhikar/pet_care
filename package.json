@@ -6,15 +6,23 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:admin": "node scripts/seed-admin.js",
+    "seed:mongo": "node scripts/seed-mongo.js",
+    "test": "npx tsx tests/exclusivity-and-limits.test.mjs"
   },
   "dependencies": {
+    "canvas-confetti": "^1.9.4",
+    "framer-motion": "^14.5.0",
+    "lucide-react": "^1.61.0",
+    "mongoose": "^9.11.3",
     "next": "16.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
