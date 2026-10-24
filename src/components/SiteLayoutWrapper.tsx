@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { PawCursorTrail } from "@/components/PawCursorTrail";
-import { FloatingPetAnimations } from "@/components/FloatingPetAnimations";
 
 function SiteLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -20,9 +19,6 @@ function SiteLayoutContent({ children }: { children: React.ReactNode }) {
     <>
       {/* Interactive Desktop Paw Cursor Trail */}
       <PawCursorTrail />
-
-      {/* Global Floating Pet & Reaction Animations */}
-      <FloatingPetAnimations />
 
       {/* Global Public Navigation Header */}
       <Navbar />
