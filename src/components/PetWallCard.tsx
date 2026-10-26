@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { PetWallPhoto } from "@/types";
 import { likePetWallPhoto, reportPetWallPhoto } from "@/lib/storage";
+import { useAuth } from "@/context/AuthContext";
 import { Heart, Flag, Sparkles, Check } from "lucide-react";
 
 interface PetWallCardProps {
@@ -22,25 +23,32 @@ export function PetWallCard({
   const [hasLiked, setHasLiked] = useState(false);
   const [reported, setReported] = useState(false);
   const [likeBurst, setLikeBurst] = useState(false);
+  const { requireAuth } = useAuth();
 
   const handleLike = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (hasLiked) return;
-    const newCount = likePetWallPhoto(photo.id);
-    setLikes(newCount);
-    setHasLiked(true);
-    setLikeBurst(true);
-    setTimeout(() => setLikeBurst(false), 800);
+
+    requireAuth(() => {
+      if (hasLiked) return;
+      const newCount = likePetWallPhoto(photo.id);
+      setLikes(newCount);
+      setHasLiked(true);
+      setLikeBurst(true);
+      setTimeout(() => setLikeBurst(false), 800);
+    }, "Please sign in or create an account to like pets on the Community Wall!");
   };
 
   const handleReport = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (reported) return;
-    if (confirm("Would you like to report this photo for review by our moderation team?")) {
-      reportPetWallPhoto(photo.id);
-      setReported(true);
-      alert("Thank you. Our moderators will review this photo within 24 hours.");
-    }
+
+    requireAuth(() => {
+      if (reported) return;
+      if (confirm("Would you like to report this photo for review by our moderation team?")) {
+        reportPetWallPhoto(photo.id);
+        setReported(true);
+        alert("Thank you. Our moderators will review this photo within 24 hours.");
+      }
+    }, "Please sign in or create an account to submit a community report.");
   };
 
   // Polaroid tilt style

@@ -7,16 +7,16 @@ import { PetWallPhoto, UserProfile } from "@/types";
 import { PetWallCard } from "@/components/PetWallCard";
 import { LightboxModal } from "@/components/LightboxModal";
 import { UploadPhotoModal } from "@/components/UploadPhotoModal";
+import { useAuth } from "@/context/AuthContext";
 import { Camera, Sparkles, Shield, Heart, Plus } from "lucide-react";
 
 export default function PetWallPage() {
   const [photos, setPhotos] = useState<PetWallPhoto[]>([]);
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const { user: authUser, requireAuth } = useAuth();
   const [activePhoto, setActivePhoto] = useState<PetWallPhoto | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   useEffect(() => {
-    setUser(getCurrentUser());
     setPhotos(getPetWallPhotos());
   }, []);
 
@@ -79,25 +79,19 @@ export default function PetWallPage() {
           </div>
         </div>
 
-        {/* Upload Trigger / Guest Callout */}
-        {user ? (
-          <button
-            onClick={() => setUploadModalOpen(true)}
-            className="px-6 py-4 bg-[#FF4D6D] hover:bg-[#E63956] text-white font-display font-black text-sm rounded-2xl border-3 border-black pop-shadow-coral hover:scale-105 active:scale-95 transition-all flex items-center gap-2 shrink-0 cursor-pointer"
-          >
-            <Camera className="w-4 h-4" />
-            <span>Post Your Pet Photo</span>
-          </button>
-        ) : (
-          <div className="flex items-center gap-3 shrink-0">
-            <Link
-              href="/signup"
-              className="px-5 py-3.5 bg-[#FF4D6D] text-white font-display font-black text-xs rounded-xl border-2 border-black pop-shadow-coral hover:scale-105"
-            >
-              Join to Post Your Pet!
-            </Link>
-          </div>
-        )}
+        {/* Upload Trigger: Protected by requireAuth */}
+        <button
+          onClick={() =>
+            requireAuth(
+              () => setUploadModalOpen(true),
+              "Please sign in or create an account to share your pet's photo on the community wall!"
+            )
+          }
+          className="px-6 py-4 bg-[#FF4D6D] hover:bg-[#E63956] text-white font-display font-black text-sm rounded-2xl border-3 border-black pop-shadow-coral hover:scale-105 active:scale-95 transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+        >
+          <Camera className="w-4 h-4" />
+          <span>Post Your Pet Photo</span>
+        </button>
       </div>
 
       {/* Masonry Polaroid Photo Grid */}
@@ -107,14 +101,14 @@ export default function PetWallPage() {
             key={photo.id}
             photo={photo}
             onOpenLightbox={(p) => setActivePhoto(p)}
-            isOwner={user?.displayName === photo.ownerDisplayName || user?.id === photo.userId}
+            isOwner={authUser?.name === photo.ownerDisplayName || authUser?.id === photo.userId}
             onDelete={handleDeletePhoto}
           />
         ))}
       </div>
 
       {/* Signed-Out Visitors Callout Bottom Banner */}
-      {!user && (
+      {!authUser && (
         <div className="mt-16 bg-[#FFF0F3] dark:bg-purple-950/40 border-4 border-black rounded-3xl p-8 sm:p-12 pop-shadow-xl text-center max-w-2xl mx-auto space-y-4">
           <span className="text-4xl block animate-bounce">🐾</span>
           <h3 className="font-display font-black text-2xl sm:text-3xl text-[#181126] dark:text-white">
@@ -124,20 +118,35 @@ export default function PetWallPage() {
             Create a free account in under 30 seconds to upload photos, save holistic health recipes, and read our weekly Sunday Dispatch.
           </p>
           <div className="pt-2">
-            <Link
-              href="/signup"
+            <button
+              onClick={() =>
+                requireAuth(
+                  () => setUploadModalOpen(true),
+                  "Please sign in or create an account to share your pet's photo on the community wall!"
+                )
+              }
               className="inline-block px-7 py-4 bg-[#FFE600] text-black font-display font-black text-sm rounded-2xl border-3 border-black pop-shadow hover:scale-108 active:scale-95 transition-all cursor-pointer animate-pulse-badge"
             >
               Join the PawsWell Community Free
-            </Link>
+            </button>
           </div>
         </div>
       )}
 
       {/* Upload Modal */}
-      {user && (
+      {authUser && (
         <UploadPhotoModal
-          user={user}
+          user={{
+            id: authUser.id,
+            email: authUser.email,
+            displayName: authUser.name,
+            avatarUrl: authUser.avatarUrl,
+            role: authUser.role === "admin" ? "admin" : authUser.isVIP ? "premium" : "member",
+            plan: authUser.plan,
+            joinedAt: authUser.createdAt ? authUser.createdAt.split("T")[0] : "2026-01-01",
+            newsletterSubscribed: true,
+            newsletterFrequency: "weekly",
+          }}
           isOpen={uploadModalOpen}
           onClose={() => setUploadModalOpen(false)}
           onPhotoUploaded={handlePhotoUploaded}

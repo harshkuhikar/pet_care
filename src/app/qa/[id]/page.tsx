@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { getCurrentUser } from "@/lib/storage";
+import { useAuth } from "@/context/AuthContext";
 import { UserProfile } from "@/types";
 import { firePawsConfetti } from "@/lib/confetti";
 import {
@@ -27,7 +28,7 @@ function QuestionDetailContent() {
   const id = params?.id as string;
   const router = useRouter();
 
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const { user: authUser, requireAuth, status } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -36,7 +37,7 @@ function QuestionDetailContent() {
   const [credentials, setCredentials] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchQuestionData = async (currentUser: UserProfile | null) => {
+  const fetchQuestionData = async (currentUser: any) => {
     setLoading(true);
     try {
       const queryParams = new URLSearchParams();
@@ -62,83 +63,88 @@ function QuestionDetailContent() {
   };
 
   useEffect(() => {
-    const cur = getCurrentUser();
-    setUser(cur);
     if (id) {
-      fetchQuestionData(cur);
+      fetchQuestionData(authUser);
     }
-  }, [id]);
+  }, [id, authUser]);
 
   const handleVote = async (answerId: string, action: "upvote" | "downvote") => {
-    try {
-      const res = await fetch(`/api/qa/answers/${answerId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      if (res.ok) {
-        const json = await res.json();
-        setData((prev: any) => ({
-          ...prev,
-          answers: prev.answers.map((a: any) => (a.id === answerId ? json.answer : a)),
-        }));
+    requireAuth(async () => {
+      try {
+        const res = await fetch(`/api/qa/answers/${answerId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          setData((prev: any) => ({
+            ...prev,
+            answers: prev.answers.map((a: any) => (a.id === answerId ? json.answer : a)),
+          }));
+        }
+      } catch (err) {
+        console.error("Vote error:", err);
       }
-    } catch (err) {
-      console.error("Vote error:", err);
-    }
+    }, "Please sign in or create an account to vote on answers.");
   };
 
   const handleMarkBest = async (answerId: string) => {
-    if (!user) return;
-    try {
-      const res = await fetch(`/api/qa/answers/${answerId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "best_answer",
-          questionId: id,
-          userId: user.id,
-        }),
-      });
-      if (res.ok) {
-        firePawsConfetti();
-        fetchQuestionData(user);
+    requireAuth(async () => {
+      if (!authUser) return;
+      try {
+        const res = await fetch(`/api/qa/answers/${answerId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "best_answer",
+            questionId: id,
+            userId: authUser.id,
+          }),
+        });
+        if (res.ok) {
+          firePawsConfetti();
+          fetchQuestionData(authUser);
+        }
+      } catch (err) {
+        console.error("Best answer error:", err);
       }
-    } catch (err) {
-      console.error("Best answer error:", err);
-    }
+    }, "Please sign in to select the best answer.");
   };
 
   const handleSubmitAnswer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!answerContent.trim() || !user) return;
+    if (!answerContent.trim()) return;
 
-    setIsSubmitting(true);
-    try {
-      const res = await fetch(`/api/qa/questions/${id}/answers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          authorId: user.id,
-          authorName: user.displayName,
-          authorAvatar: user.avatarUrl,
-          authorRole: user.role,
-          authorCredentials: credentials.trim() || undefined,
-          content: answerContent,
-        }),
-      });
+    requireAuth(async () => {
+      if (!authUser) return;
+      setIsSubmitting(true);
+      try {
+        const res = await fetch(`/api/qa/questions/${id}/answers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            authorId: authUser.id,
+            authorName: authUser.name,
+            authorAvatar: authUser.avatarUrl,
+            authorRole: authUser.role,
+            authorCredentials: credentials.trim() || undefined,
+            content: answerContent,
+          }),
+        });
 
-      if (res.ok) {
-        setAnswerContent("");
-        setCredentials("");
-        firePawsConfetti();
-        fetchQuestionData(user);
+        if (res.ok) {
+          setAnswerContent("");
+          setCredentials("");
+          firePawsConfetti();
+          fetchQuestionData(authUser);
+        }
+      } catch (err) {
+        console.error("Submit answer error:", err);
+      } finally {
+        setIsSubmitting(false);
       }
-    } catch (err) {
-      console.error("Submit answer error:", err);
-    } finally {
-      setIsSubmitting(false);
-    }
+    }, "Please sign in or create an account to post an answer.");
   };
 
   if (loading) {
@@ -368,7 +374,7 @@ function QuestionDetailContent() {
                   </button>
                 </div>
 
-                {user && user.id === question?.authorId && !ans.isBestAnswer && (
+                {authUser && authUser.id === question?.authorId && !ans.isBestAnswer && (
                   <button
                     onClick={() => handleMarkBest(ans.id)}
                     className="px-3 py-1.5 bg-[#FFE600] text-black font-display font-black text-xs rounded-xl border-2 border-black pop-shadow hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
@@ -383,7 +389,7 @@ function QuestionDetailContent() {
         )}
 
         {/* WRITE ANSWER SECTION (Available to all logged-in users) */}
-        {user ? (
+        {authUser ? (
           <div className="bg-white dark:bg-slate-900 border-4 border-black rounded-3xl p-6 sm:p-8 pop-shadow-xl space-y-4">
             <h3 className="font-display font-black text-xl text-slate-900 dark:text-white flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-[#FF4D6D]" />

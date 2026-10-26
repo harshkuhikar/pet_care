@@ -9,6 +9,7 @@
     "lint": "eslint",
     "seed:admin": "node scripts/seed-admin.js",
     "seed:mongo": "node scripts/seed-mongo.js",
+    "check:auth": "node --env-file=.env.local scripts/check-auth.mjs",
     "test": "node --env-file=.env.local tests/otp-auth-system.test.mjs && npx tsx --env-file=.env.local tests/exclusivity-and-limits.test.mjs"
   },
   "dependencies": {

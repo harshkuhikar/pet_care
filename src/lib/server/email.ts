@@ -91,23 +91,33 @@ If you did not request this code, please ignore this email.
 
     if (error) {
       console.error("[Resend Error]:", error);
-      // Check for domain verification issue
-      if (
+      const isDomainRestriction =
         error.message?.includes("domain") ||
         error.message?.includes("verify") ||
-        error.message?.includes("testing")
-      ) {
+        error.message?.includes("testing") ||
+        error.message?.includes("only send testing emails");
+
+      if (isDomainRestriction) {
         console.warn(
-          `[Resend Notice] To send emails to external users, please verify your custom domain in the Resend dashboard or send exclusively to your registered Resend test email when using onboarding@resend.dev.`
+          `[Resend Notice] Verification emails with onboarding@resend.dev can only be sent to the registered Resend account owner (${process.env.ADMIN_EMAIL || "harshkuhikar68@gmail.com"}). To send to other emails, please verify your domain at resend.com/domains.`
         );
       }
-      // If in dev and email send failed, also log code so developer isn't locked out
+
+      // If in dev and email send failed, print code to console and allow dev to proceed
       if (!isProduction) {
-        console.log(`[DEV FALLBACK] Code for ${toEmail}: ${code}`);
+        console.log(`\n=======================================================`);
+        console.log(`[DEV OTP CONSOLE OUTPUT] Recipient: ${toEmail}`);
+        console.log(`[DEV OTP CONSOLE OUTPUT] Code: >>> ${code} <<<`);
+        console.log(`[DEV OTP CONSOLE OUTPUT] Dev note: Resend restricted external email delivery, code logged to console for testing.`);
+        console.log(`=======================================================\n`);
+        return { success: true };
       }
+
       return {
         success: false,
-        error: "Unable to deliver verification code. Please check your email address or try again shortly.",
+        error: isDomainRestriction
+          ? `During testing mode with onboarding@resend.dev, emails can only be sent to the registered Resend account owner (${process.env.ADMIN_EMAIL || "harshkuhikar68@gmail.com"}). Please sign up with that email, or verify a custom domain in Resend.`
+          : "We couldn't send the email right now. Please try again in a minute.",
       };
     }
 
@@ -115,11 +125,15 @@ If you did not request this code, please ignore this email.
   } catch (err: any) {
     console.error("[Email Exception]:", err);
     if (!isProduction) {
-      console.log(`[DEV FALLBACK] Code for ${toEmail}: ${code}`);
+      console.log(`\n=======================================================`);
+      console.log(`[DEV OTP CONSOLE OUTPUT] Recipient: ${toEmail}`);
+      console.log(`[DEV OTP CONSOLE OUTPUT] Code: >>> ${code} <<<`);
+      console.log(`=======================================================\n`);
+      return { success: true };
     }
     return {
       success: false,
-      error: "Failed to dispatch email. Please try again in a few moments.",
+      error: "We couldn't send the email right now. Please try again in a minute.",
     };
   }
 }

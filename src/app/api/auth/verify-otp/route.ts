@@ -28,7 +28,18 @@ function verifyOrigin(req: Request): boolean {
   if (!origin || !host) return true;
   try {
     const originHost = new URL(origin).host;
-    return originHost === host;
+    if (originHost === host) return true;
+    if (originHost.endsWith(".vercel.app")) return true;
+    if (originHost === "pet-care-zeta-three.vercel.app") return true;
+    if (originHost === "localhost:3000" || originHost.startsWith("127.0.0.1")) return true;
+
+    if (process.env.NEXT_PUBLIC_SITE_URL) {
+      try {
+        const siteHost = new URL(process.env.NEXT_PUBLIC_SITE_URL).host;
+        if (originHost === siteHost) return true;
+      } catch {}
+    }
+    return false;
   } catch {
     return false;
   }

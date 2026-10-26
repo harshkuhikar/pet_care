@@ -3,51 +3,44 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Article, UserProfile } from "@/types";
-import { isArticleSaved, toggleSaveArticle, getCurrentUser } from "@/lib/storage";
+import { isArticleSaved, toggleSaveArticle } from "@/lib/storage";
+import { useAuth } from "@/context/AuthContext";
 import { Heart, Clock, ShieldCheck, Lock, Sparkles } from "lucide-react";
 
 export function ArticleCard({ article }: { article: Article }) {
   const [saved, setSaved] = useState(false);
   const [bursting, setBursting] = useState(false);
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const { user: authUser, requireAuth, status } = useAuth();
 
   useEffect(() => {
-    setSaved(isArticleSaved(article.id));
-    const handleSync = () => {
-      setUser(getCurrentUser());
-    };
-    handleSync();
-
-    if (typeof window !== "undefined") {
-      window.addEventListener("pawswell_user_updated", handleSync);
-      window.addEventListener("storage", handleSync);
-      return () => {
-        window.removeEventListener("pawswell_user_updated", handleSync);
-        window.removeEventListener("storage", handleSync);
-      };
+    if (status === "authenticated" && authUser) {
+      setSaved(isArticleSaved(article.id));
+    } else {
+      setSaved(false); // Guests see neutral unsaved state
     }
-  }, [article.id]);
+  }, [article.id, status, authUser]);
 
   const isUserPremium = Boolean(
-    user &&
-      (user.role === "premium" ||
-        user.role === "pro" ||
-        user.role === "admin" ||
-        user.plan === "monthly" ||
-        user.plan === "yearly" ||
-        user.plan === "pro" ||
-        user.plan === "premium")
+    authUser &&
+      (authUser.role === "admin" ||
+        authUser.isVIP ||
+        authUser.plan === "premium" ||
+        authUser.plan === "family" ||
+        authUser.plan === "pro")
   );
 
   const handleToggleSave = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const newState = toggleSaveArticle(article.id);
-    setSaved(newState);
-    if (newState) {
-      setBursting(true);
-      setTimeout(() => setBursting(false), 800);
-    }
+
+    requireAuth(() => {
+      const newState = toggleSaveArticle(article.id);
+      setSaved(newState);
+      if (newState) {
+        setBursting(true);
+        setTimeout(() => setBursting(false), 800);
+      }
+    }, "Please sign in or create a free account to save guides to your reading list.");
   };
 
   const getTopicColor = (topic: string) => {

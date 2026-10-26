@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/storage";
 import { UserProfile } from "@/types";
+import { useAuth } from "@/context/AuthContext";
 import { firePawsConfetti } from "@/lib/confetti";
 import {
   MessageSquare,
@@ -22,7 +23,7 @@ import {
 } from "lucide-react";
 
 export default function QAPage() {
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const { user: authUser, requireAuth } = useAuth();
   const [questions, setQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -83,10 +84,22 @@ export default function QAPage() {
   };
 
   useEffect(() => {
-    const cur = getCurrentUser();
-    setUser(cur);
-    fetchUserStats(cur);
-  }, []);
+    if (authUser) {
+      fetchUserStats({
+        id: authUser.id,
+        displayName: authUser.name,
+        email: authUser.email,
+        role: (authUser.role === "admin" ? "admin" : "member") as "member" | "premium" | "pro" | "admin",
+        plan: (authUser.plan as any) || "free",
+        avatarUrl: authUser.avatarUrl,
+        joinedAt: new Date().toISOString(),
+        newsletterSubscribed: false,
+        newsletterFrequency: "weekly",
+      });
+    } else {
+      setUserStats(null);
+    }
+  }, [authUser]);
 
   useEffect(() => {
     fetchQuestions();
@@ -99,7 +112,7 @@ export default function QAPage() {
 
   const handleAskQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !newDetails.trim() || !user) return;
+    if (!newTitle.trim() || !newDetails.trim() || !authUser) return;
 
     setIsSubmitting(true);
     try {
@@ -107,10 +120,10 @@ export default function QAPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          authorId: user.id,
-          authorName: user.displayName,
-          authorAvatar: user.avatarUrl,
-          authorRole: user.role,
+          authorId: authUser.id,
+          authorName: authUser.name,
+          authorAvatar: authUser.avatarUrl,
+          authorRole: authUser.role,
           title: newTitle,
           details: newDetails,
           category: newCategory,
@@ -151,22 +164,18 @@ export default function QAPage() {
 
         {/* Action Button: Ask Question */}
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          {user ? (
-            <button
-              onClick={() => setAskModalOpen(true)}
-              className="px-6 py-3.5 bg-[#FF4D6D] hover:bg-[#E63956] text-white font-display font-black text-sm rounded-2xl border-3 border-black pop-shadow-coral hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>Ask a Question (Unlimited)</span>
-            </button>
-          ) : (
-            <Link
-              href="/login"
-              className="px-6 py-3.5 bg-[#FFE600] text-black font-display font-black text-sm rounded-2xl border-2 border-black pop-shadow hover:scale-105 active:scale-95 transition-all"
-            >
-              Sign In to Ask Questions
-            </Link>
-          )}
+          <button
+            onClick={() =>
+              requireAuth(
+                () => setAskModalOpen(true),
+                "Please sign in or create an account to post a question to the community!"
+              )
+            }
+            className="px-6 py-3.5 bg-[#FF4D6D] hover:bg-[#E63956] text-white font-display font-black text-sm rounded-2xl border-3 border-black pop-shadow-coral hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>Ask a Question (Unlimited)</span>
+          </button>
 
           <Link
             href="/membership"
@@ -179,7 +188,7 @@ export default function QAPage() {
       </div>
 
       {/* Plan Usage Meter Banner */}
-      {user && userStats && (
+      {authUser && userStats && (
         <div className="bg-white dark:bg-slate-900 border-3 border-black rounded-3xl p-5 mb-10 pop-shadow flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-[#00F5D4] border-2 border-black flex items-center justify-center text-2xl pop-shadow-sm shrink-0">
@@ -191,9 +200,9 @@ export default function QAPage() {
                   Monthly Answer Unlock Meter
                 </span>
                 <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-[#FFE600] text-black border border-black/30">
-                  {user.plan === "pro" || user.plan === "yearly" || user.role === "pro" || user.role === "admin"
+                  {authUser.plan === "pro" || authUser.plan === "family" || authUser.role === "admin"
                     ? "Family / Pro Pack"
-                    : user.plan === "premium" || user.plan === "monthly" || user.role === "premium"
+                    : authUser.plan === "premium" || authUser.isVIP
                     ? "PawsWell Premium"
                     : "Free Explorer"}
                 </span>

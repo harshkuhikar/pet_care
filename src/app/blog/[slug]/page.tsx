@@ -7,6 +7,7 @@ import { SEED_ARTICLES } from "@/lib/seedData";
 import { getCurrentUser, isArticleSaved, toggleSaveArticle } from "@/lib/storage";
 import { Article, UserProfile } from "@/types";
 import { ArticleCard } from "@/components/ArticleCard";
+import { useAuth } from "@/context/AuthContext";
 import { VetDisclaimerBanner } from "@/components/VetDisclaimerBanner";
 import { firePawsConfetti } from "@/lib/confetti";
 import { renderArticleMarkdown } from "@/lib/markdown";
@@ -82,22 +83,32 @@ function ArticleDetailContent() {
     );
   }
 
+  const { user: authUser, requireAuth, status } = useAuth();
+
+  useEffect(() => {
+    if (status === "authenticated" && authUser) {
+      if (article) setSaved(isArticleSaved(article.id));
+    } else {
+      setSaved(false);
+    }
+  }, [article, status, authUser]);
+
   const isUserPremium = Boolean(
-    user &&
-      (user.role === "premium" ||
-        user.role === "pro" ||
-        user.role === "admin" ||
-        user.plan === "monthly" ||
-        user.plan === "yearly" ||
-        user.plan === "pro" ||
-        user.plan === "premium")
+    authUser &&
+      (authUser.role === "admin" ||
+        authUser.isVIP ||
+        authUser.plan === "premium" ||
+        authUser.plan === "family" ||
+        authUser.plan === "pro")
   );
   const isPaywalled = article.isPremium && !isUserPremium;
 
   const handleToggleSave = () => {
-    const state = toggleSaveArticle(article.id);
-    setSaved(state);
-    if (state) firePawsConfetti();
+    requireAuth(() => {
+      const state = toggleSaveArticle(article.id);
+      setSaved(state);
+      if (state) firePawsConfetti();
+    }, "Please sign in or create an account to save this guide to your collection.");
   };
 
   const handleCopyLink = () => {
@@ -110,18 +121,22 @@ function ArticleDetailContent() {
 
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim() || !user) return;
-    setComments([
-      ...comments,
-      {
-        id: `c_${Date.now()}`,
-        author: user.displayName,
-        avatar: user.avatarUrl,
-        text: newComment,
-        date: "Just now",
-      },
-    ]);
-    setNewComment("");
+    if (!newComment.trim()) return;
+
+    requireAuth(() => {
+      if (!authUser) return;
+      setComments([
+        ...comments,
+        {
+          id: `c_${Date.now()}`,
+          author: authUser.name,
+          avatar: authUser.avatarUrl,
+          text: newComment,
+          date: "Just now",
+        },
+      ]);
+      setNewComment("");
+    }, "Please sign in or create an account to leave a comment.");
   };
 
   const relatedArticles = SEED_ARTICLES.filter(

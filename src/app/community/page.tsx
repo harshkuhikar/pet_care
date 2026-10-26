@@ -7,6 +7,7 @@ import { getForumThreads, addForumThread, getCurrentUser } from "@/lib/storage";
 import { ForumThread, UserProfile } from "@/types";
 import { VetDisclaimerBanner } from "@/components/VetDisclaimerBanner";
 import { firePawsConfetti } from "@/lib/confetti";
+import { useAuth } from "@/context/AuthContext";
 import {
   MessageSquare,
   Sparkles,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 
 export default function CommunityPage() {
+  const { user: authUser, openLoginModal, requireAuth } = useAuth();
   const [threads, setThreads] = useState<ForumThread[]>([]);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("all");
@@ -39,7 +41,7 @@ export default function CommunityPage() {
 
   const handleCreateThread = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !newContent.trim() || !user) return;
+    if (!newTitle.trim() || !newContent.trim()) return;
 
     const cat = SEED_FORUM_CATEGORIES.find((c) => c.id === newCategory) || SEED_FORUM_CATEGORIES[0];
 
@@ -48,10 +50,10 @@ export default function CommunityPage() {
       categoryName: cat.name,
       title: newTitle.trim(),
       content: newContent.trim(),
-      authorId: user.id,
-      authorName: user.displayName,
-      authorAvatar: user.avatarUrl,
-      authorRole: user.role,
+      authorId: authUser?.id || user?.id || "member",
+      authorName: authUser?.name || user?.displayName || "Companion Guardian",
+      authorAvatar: authUser?.avatarUrl || user?.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250",
+      authorRole: (authUser?.role === "admin" ? "admin" : "member") as "member" | "premium" | "pro" | "admin",
       tags: newTag ? [newTag.trim()] : ["Community Experience"],
     });
 
@@ -153,7 +155,7 @@ export default function CommunityPage() {
           </div>
 
           {/* New Discussion Trigger Button */}
-          {user ? (
+          {authUser ? (
             <button
               onClick={() => setCreateModalOpen(true)}
               className="w-full py-4 bg-[#FF4D6D] hover:bg-[#E63956] text-white font-display font-black text-base rounded-2xl border-3 border-black pop-shadow-coral hover:scale-102 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer"
@@ -169,12 +171,19 @@ export default function CommunityPage() {
               <p className="text-xs font-bold text-slate-800">
                 Sign in or create a free membership to participate in discussions.
               </p>
-              <Link
-                href="/login"
-                className="inline-block mt-2 px-4 py-2 bg-black text-white font-display font-black text-xs rounded-xl"
+              <button
+                type="button"
+                onClick={() =>
+                  openLoginModal(
+                    "signup",
+                    () => setCreateModalOpen(true),
+                    "Sign in or create a free account to join the discussion."
+                  )
+                }
+                className="inline-block mt-2 px-4 py-2 bg-black text-white font-display font-black text-xs rounded-xl hover:bg-slate-800 cursor-pointer"
               >
                 Sign In to Post
-              </Link>
+              </button>
             </div>
           )}
         </aside>
@@ -248,7 +257,7 @@ export default function CommunityPage() {
       </div>
 
       {/* Start New Thread Modal */}
-      {createModalOpen && user && (
+      {createModalOpen && (authUser || user) && (
         <div
           role="dialog"
           aria-modal="true"
